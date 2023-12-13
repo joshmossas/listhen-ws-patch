@@ -1,38 +1,65 @@
-import { createServer } from "node:http";
-import type { Server as HTTPServer } from "node:https";
-import { createServer as createHTTPSServer } from "node:https";
+import {
+  createServer as createHttpServer,
+  createServer,
+  IncomingMessage,
+  ServerResponse,
+} from "node:http";
+import { createServer as createRawServer } from "node:net";
+import { createServer as createHttpsServer } from "node:https";
+import {
+  createSecureServer as createHttps2Server,
+  createServer as createHttp2Server,
+  Http2ServerRequest,
+  Http2ServerResponse,
+} from "node:http2";
 import { promisify } from "node:util";
-import type { RequestListener, Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { getPort } from "get-port-please";
 import addShutdown from "http-shutdown";
 import consola from "consola";
 import { defu } from "defu";
-import { ColorName, getColor, colors } from "consola/utils";
+import { ColorName, colors, getColor } from "consola/utils";
 import { renderUnicodeCompact as renderQRCode } from "uqr";
 import type { Tunnel } from "untun";
 import { open } from "./lib/open";
 import type {
-  ListenOptions,
-  Listener,
-  ShowURLOptions,
-  HTTPSOptions,
-  ListenURL,
   GetURLOptions,
+  HTTPSOptions,
+  Listener,
+  ListenOptions,
+  ListenURL,
+  Server,
+  ShowURLOptions,
 } from "./types";
 import {
   formatURL,
-  getNetworkInterfaces,
-  isLocalhost,
-  isAnyhost,
-  getPublicURL,
   generateURL,
   getDefaultHost,
+  getNetworkInterfaces,
+  getPublicURL,
+  isAnyhost,
+  isLocalhost,
   validateHostname,
 } from "./_utils";
 import { resolveCertificate } from "./_cert";
 import { isWsl } from "./lib/wsl";
 import { isDocker } from "./lib/docker";
+
+type RequestListenerHttp1x<
+  Request extends typeof IncomingMessage = typeof IncomingMessage,
+  Response extends
+    typeof ServerResponse<IncomingMessage> = typeof ServerResponse<IncomingMessage>,
+> = (
+  req: InstanceType<Request>,
+  res: InstanceType<Response> & { req: InstanceType<Request> },
+) => void;
+
+type RequestListenerHttp2<
+  Request extends typeof Http2ServerRequest = typeof Http2ServerRequest,
+  Response extends typeof Http2ServerResponse = typeof Http2ServerResponse,
+> = (request: InstanceType<Request>, response: InstanceType<Response>) => void;
+
+type RequestListener = RequestListenerHttp1x | RequestListenerHttp2;
 
 export async function listen(
   handle: RequestListener,
@@ -52,6 +79,7 @@ export async function listen(
   const listhenOptions = defu<ListenOptions, ListenOptions[]>(_options, {
     name: "",
     https: false,
+    http2: false,
     port: process.env.PORT || 3000,
     hostname: _hostname ?? getDefaultHost(_public),
     showURL: true,
@@ -108,20 +136,56 @@ export async function listen(
   }));
 
   // --- Listen ---
-  let server: Server | HTTPServer;
+  let server: Server;
   let https: Listener["https"] = false;
   const httpsOptions = listhenOptions.https as HTTPSOptions;
   let _addr: AddressInfo;
   if (httpsOptions) {
     https = await resolveCertificate(httpsOptions);
-    server = createHTTPSServer(https, handle);
+    server = listhenOptions.http2
+      ? createHttps2Server(
+          {
+            ...https,
+            allowHTTP1: true,
+          },
+          handle as RequestListenerHttp2,
+        )
+      : createHttpsServer(https, handle as RequestListenerHttp1x);
+    addShutdown(server);
+    // @ts-ignore
+    await promisify(server.listen.bind(server))(port, listhenOptions.hostname);
+    _addr = server.address() as AddressInfo;
+    listhenOptions.port = _addr.port;
+  } else if (listhenOptions.http2) {
+    const h1Server = createServer((req, res) => {
+      /**
+       * TODO check headers to see if we should upgrade the request to HTTP2
+       * if request needs to be updated send necessary headers
+       * and somehow pass the socket over to the h2Server for future use
+       */
+      (handle as RequestListenerHttp1x)(req, res);
+    });
+    const h2Server = createHttp2Server(handle as RequestListenerHttp2);
+    server = createRawServer(async (socket) => {
+      const chunk = await new Promise((resolve) =>
+        socket.once("data", resolve),
+      );
+      // @ts-expect-error
+      socket._readableState.flowing = undefined;
+      socket.unshift(chunk);
+      if ((chunk as any).toString("utf8", 0, 3) === "PRI") {
+        h2Server.emit("connection", socket);
+      } else {
+        h1Server.emit("connection", socket);
+      }
+    });
     addShutdown(server);
     // @ts-ignore
     await promisify(server.listen.bind(server))(port, listhenOptions.hostname);
     _addr = server.address() as AddressInfo;
     listhenOptions.port = _addr.port;
   } else {
-    server = createServer(handle);
+    server = createHttpServer(handle as RequestListenerHttp1x);
     addShutdown(server);
     // @ts-ignore
     await promisify(server.listen.bind(server))(port, listhenOptions.hostname);
