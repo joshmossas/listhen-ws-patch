@@ -1,10 +1,8 @@
 import {
   createServer as createHttpServer,
-  createServer,
   IncomingMessage,
   ServerResponse,
 } from "node:http";
-import { createServer as createRawServer } from "node:net";
 import { createServer as createHttpsServer } from "node:https";
 import {
   createSecureServer as createHttps2Server,
@@ -13,7 +11,7 @@ import {
   Http2ServerResponse,
 } from "node:http2";
 import { promisify } from "node:util";
-import type { AddressInfo } from "node:net";
+import { createServer as createRawTcpIpcServer, AddressInfo } from "node:net";
 import { getPort } from "get-port-please";
 import addShutdown from "http-shutdown";
 import consola from "consola";
@@ -140,6 +138,13 @@ export async function listen(
   let https: Listener["https"] = false;
   const httpsOptions = listhenOptions.https as HTTPSOptions;
   let _addr: AddressInfo;
+
+  async function bind() {
+    // @ts-ignore
+    await promisify(server.listen.bind(server))(port, listhenOptions.hostname);
+    _addr = server.address() as AddressInfo;
+    listhenOptions.port = _addr.port;
+  }
   if (httpsOptions) {
     https = await resolveCertificate(httpsOptions);
     server = listhenOptions.http2
@@ -152,21 +157,11 @@ export async function listen(
         )
       : createHttpsServer(https, handle as RequestListenerHttp1x);
     addShutdown(server);
-    // @ts-ignore
-    await promisify(server.listen.bind(server))(port, listhenOptions.hostname);
-    _addr = server.address() as AddressInfo;
-    listhenOptions.port = _addr.port;
+    await bind();
   } else if (listhenOptions.http2) {
-    const h1Server = createServer((req, res) => {
-      /**
-       * TODO check headers to see if we should upgrade the request to HTTP2
-       * if request needs to be updated send necessary headers
-       * and somehow pass the socket over to the h2Server for future use
-       */
-      (handle as RequestListenerHttp1x)(req, res);
-    });
+    const h1Server = createHttpServer(handle as RequestListenerHttp1x);
     const h2Server = createHttp2Server(handle as RequestListenerHttp2);
-    server = createRawServer(async (socket) => {
+    server = createRawTcpIpcServer(async (socket) => {
       const chunk = await new Promise((resolve) =>
         socket.once("data", resolve),
       );
@@ -175,22 +170,16 @@ export async function listen(
       socket.unshift(chunk);
       if ((chunk as any).toString("utf8", 0, 3) === "PRI") {
         h2Server.emit("connection", socket);
-      } else {
-        h1Server.emit("connection", socket);
+        return;
       }
+      h1Server.emit("connection", socket);
     });
     addShutdown(server);
-    // @ts-ignore
-    await promisify(server.listen.bind(server))(port, listhenOptions.hostname);
-    _addr = server.address() as AddressInfo;
-    listhenOptions.port = _addr.port;
+    await bind();
   } else {
     server = createHttpServer(handle as RequestListenerHttp1x);
     addShutdown(server);
-    // @ts-ignore
-    await promisify(server.listen.bind(server))(port, listhenOptions.hostname);
-    _addr = server.address() as AddressInfo;
-    listhenOptions.port = _addr.port;
+    await bind();
   }
 
   // --- GetURL Utility ---
@@ -350,6 +339,7 @@ export async function listen(
     url: getURL(),
     https,
     server,
+    // @ts-ignore
     address: _addr,
     open: _open,
     showURL,
