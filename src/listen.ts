@@ -203,7 +203,7 @@ export async function listen(
       const nodeWSAdapter = await import("crossws/adapters/node").then(
         (r) => r.default || r,
       );
-      const { handleUpgrade } = (nodeWSAdapter as any)({
+      const { handleUpgrade } = nodeWSAdapter({
         ...(listhenOptions.ws as CrossWSOptions<any, any>),
       });
       if (wsTargetServer) {
@@ -270,6 +270,16 @@ export async function listen(
     // Add localhost URL
     if (_localhost || _anyhost) {
       _addURL("local", getURL(listhenOptions.hostname, getURLOptions.baseURL));
+    }
+
+    if (listhenOptions.ws) {
+      _addURL(
+        "local",
+        getURL(listhenOptions.hostname, getURLOptions.baseURL).replace(
+          "http",
+          "ws",
+        ),
+      );
     }
 
     // Add tunnel URL
