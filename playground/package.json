@@ -7,6 +7,6 @@
   },
   "dependencies": {
     "h3": "^1.11.1",
-    "listhen": "^1.7.2"
+    "listhen": "workspace:*"
   }
 }

@@ -1,6 +1,6 @@
 import { extname } from "node:path";
 import { consola } from "consola";
-import { subscribe, type AsyncSubscription } from "@parcel/watcher";
+import { type AsyncSubscription } from "@parcel/watcher-wasm";
 import type { ConsolaInstance } from "consola";
 import type { Listener, ListenOptions } from "../types";
 import { listen } from "../listen";
@@ -51,7 +51,10 @@ export async function listenAndWatch(
   try {
     // https://github.com/parcel-bundler/watcher
     const jsExts = new Set([".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"]);
-
+    const subscribe = await import("@parcel/watcher-wasm").then(
+      (r) => r.subscribe,
+    );
+    // .catch(() => import("@parcel/watcher-wasm").then((r) => r.subscribe));
     watcher = await subscribe(
       devServer.cwd,
       (_error, events) => {
