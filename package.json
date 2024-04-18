@@ -1,6 +1,6 @@
 {
   "name": "@joshmossas/listhen",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "description": "👂 Elegant HTTP Listener",
   "repository": "unjs/listhen",
   "license": "MIT",
