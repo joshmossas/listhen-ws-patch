@@ -5,7 +5,7 @@ import { IncomingMessage, ServerResponse } from "node:http";
 import { consola } from "consola";
 import { dirname, join, resolve } from "pathe";
 import type { ConsolaInstance } from "consola";
-import { resolve as _resolve } from "mlly";
+import { resolve as _resolve, fileURLToPath } from "mlly";
 import type { CrossWSOptions, ListenOptions } from "../types";
 import { createResolver } from "./_resolver";
 
@@ -46,7 +46,7 @@ export async function createDevServer(
     for (const suffix of ["", "/server/src", "/server", "/src"]) {
       const resolved = resolver.tryResolve(entry + suffix);
       if (resolved) {
-        return resolved;
+        return fileURLToPath(resolved);
       }
     }
   };
@@ -127,7 +127,7 @@ export async function createDevServer(
     if (initial) {
       for (const dir of staticDirs) {
         logger.log(
-          `📁 Serving static files from ${resolver.formateRelative(dir)}`,
+          `📁 Serving static files from ${resolver.formatRelative(dir)}`,
         );
       }
     }
@@ -143,11 +143,11 @@ export async function createDevServer(
       }
       if (initial) {
         logger.log(
-          `🚀 Loading server entry ${resolver.formateRelative(_entry)}`,
+          `🚀 Loading server entry ${resolver.formatRelative(_entry)}`,
         );
       }
 
-      const _loadedEntry = await resolver.import(_entry);
+      const _loadedEntry = (await resolver.import(_entry)) as any;
 
       let _handler =
         _loadedEntry.handler ||
@@ -214,7 +214,9 @@ function normalizeErrorStack(error: Error) {
       .map((l) => l.replace(cwd, "."))
       .filter((l) => !InternalStackRe.test(l))
       .join("\n");
-  } catch {}
+  } catch {
+    // Ignore errors
+  }
   return error;
 }
 
