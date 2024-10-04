@@ -18,7 +18,7 @@ export async function listenAndWatch(
   options: Partial<ListenOptions & WatchOptions>,
 ): Promise<Listener> {
   const logger = options.logger || consola.withTag("listhen");
-  let watcher: AsyncSubscription; // eslint-disable-line prefer-const
+  let watcher: AsyncSubscription;
 
   // Create dev server
   const devServer = await createDevServer(entry, {
@@ -27,7 +27,7 @@ export async function listenAndWatch(
   });
 
   // Initialize listener
-  const listenter = await listen(devServer.nodeListener, {
+  const listener = await listen(devServer.nodeListener, {
     ...options,
     _entry: devServer._entry,
     ws: options.ws ? devServer._ws : undefined,
@@ -37,8 +37,8 @@ export async function listenAndWatch(
   await devServer.reload(true);
 
   // Hook close event to stop watcher too
-  const _close = listenter.close;
-  listenter.close = async () => {
+  const _close = listener.close;
+  listener.close = async () => {
     if (watcher) {
       await watcher.unsubscribe().catch((error) => {
         logger.error(error);
@@ -65,9 +65,7 @@ export async function listenAndWatch(
           return;
         }
         const eventsString = filteredEvents
-          .map(
-            (e) => `${devServer.resolver.formateRelative(e.path)} ${e.type}d`,
-          )
+          .map((e) => `${devServer.resolver.formatRelative(e.path)} ${e.type}d`)
           .join(", ");
         logger.log(`🔄 Reloading server (${eventsString})`);
         devServer.reload();
@@ -82,7 +80,7 @@ export async function listenAndWatch(
     );
 
     logger.log(
-      `👀 Watching ${devServer.resolver.formateRelative(
+      `👀 Watching ${devServer.resolver.formatRelative(
         devServer.cwd,
       )} for changes`,
     );
@@ -94,5 +92,5 @@ export async function listenAndWatch(
     );
   }
 
-  return listenter;
+  return listener;
 }

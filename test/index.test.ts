@@ -6,7 +6,6 @@ import { connect } from "node:http2";
 import { describe, afterEach, test, expect } from "vitest";
 import { listen, Listener } from "../src";
 
-// eslint-disable-next-line no-console
 // console.log = fn()
 
 function handle(request: IncomingMessage, response: ServerResponse) {
@@ -96,7 +95,7 @@ describe("listhen", () => {
     });
     expect(listener.url.startsWith("http://")).toBe(true);
     expect(listener.url.endsWith("/foo/bar")).toBe(true);
-    // eslint-disable-next-line no-console
+
     // expect(console.log).toHaveBeenCalledWith(expect.stringMatching('\n  > Local:    http://localhost:3000/foo/bar'))
     const response = (await sendRequest(listener.url)) as string;
     expect(JSON.parse(response)).toEqual({
@@ -160,9 +159,8 @@ describe("listhen", () => {
     test("listen (https - custom)", async () => {
       listener = await listen(handle, {
         https: {
-          // eslint-disable-next-line unicorn/prefer-module
           key: resolve(__dirname, ".tmp/certs", "key.pem"),
-          // eslint-disable-next-line unicorn/prefer-module
+
           cert: resolve(__dirname, ".tmp/certs", "cert.pem"),
         },
         hostname: "localhost",
@@ -173,9 +171,8 @@ describe("listhen", () => {
     test("listen (https - custom - with private key passphrase)", async () => {
       listener = await listen(handle, {
         https: {
-          // eslint-disable-next-line unicorn/prefer-module
           key: resolve(__dirname, ".tmp/certs", "encrypted-key.pem"),
-          // eslint-disable-next-line unicorn/prefer-module
+
           cert: resolve(__dirname, ".tmp/certs", "cert.pem"),
           passphrase: "cert-pw",
         },
@@ -191,9 +188,8 @@ describe("listhen", () => {
         expect(() =>
           listen(handle, {
             https: {
-              // eslint-disable-next-line unicorn/prefer-module
               key: resolve(__dirname, ".tmp/certs", "encrypted-key.pem"),
-              // eslint-disable-next-line unicorn/prefer-module
+
               cert: resolve(__dirname, ".tmp/certs", "cert.pem"),
               passphrase: "wrong-pw",
             },
@@ -206,7 +202,6 @@ describe("listhen", () => {
     test("listen (https - PCKS#12/pfx/p12 - with store passphrase)", async () => {
       const listener = await listen(handle, {
         https: {
-          // eslint-disable-next-line unicorn/prefer-module
           pfx: resolve(__dirname, ".tmp/certs/keystore.p12"),
           passphrase: "store-pw",
         },
@@ -219,7 +214,6 @@ describe("listhen", () => {
       expect(() =>
         listen(handle, {
           https: {
-            // eslint-disable-next-line unicorn/prefer-module
             pfx: resolve(__dirname, ".tmp/certs/keystore.p12"),
           },
           hostname: "localhost",
@@ -233,7 +227,6 @@ describe("listhen", () => {
       expect(() =>
         listen(handle, {
           https: {
-            // eslint-disable-next-line unicorn/prefer-module
             pfx: resolve(__dirname, ".tmp/certs/keystore.p12"),
             passphrase: "wrong-pw",
           },
