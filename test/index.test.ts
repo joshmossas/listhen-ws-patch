@@ -35,7 +35,6 @@ function sendRequest(url: string, https = false) {
 }
 
 function sendHttp2Request(url: string) {
-  // eslint-disable-next-line promise/param-names
   return new Promise((resolve1, reject) => {
     const client = connect(url);
 
